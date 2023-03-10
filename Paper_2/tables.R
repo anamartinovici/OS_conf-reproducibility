@@ -63,3 +63,49 @@ perc_h(dat_2)
 perc_h(dat_3)
 perc_h(dat_4)
 perc_h(dat_5)
+
+# table 1 ----
+## N per study ----
+data %>%
+    group_by(Exp) %>%
+    summarise(n = n(),
+              mean_age = round(mean(age), 3),
+              sd_age = round(sd(age), 3),
+              mean_h = round(mean(h), 3),
+              sd_h = round(sd(h), 3))
+
+data %>%
+    group_by(Exp, 
+             gender) %>%
+    summarise(n = n())
+
+df_table2 <- data %>%
+    group_by(Exp,
+             h_group) %>%
+    summarise(n_part = n()) %>%
+    ungroup()
+df_table2 <- df_table2 %>%
+    group_by(Exp) %>%
+    mutate(n_study = sum(n_part)) %>%
+    ungroup()
+df_table2 <- df_table2 %>%
+    mutate(perc_part = n_part / n_study)
+
+df_table2 %>%
+    select(Exp,
+           h_group,
+           n_part) %>%
+    tidyr::pivot_wider(names_from = h_group,
+                       values_from = n_part)
+
+df_table2 %>%
+    select(Exp,
+           h_group,
+           perc_part) %>%
+    mutate(perc_part = round(perc_part * 100, 0)) %>%
+    tidyr::pivot_wider(names_from = h_group,
+                       values_from = perc_part)
+
+dat_1 %>%
+    filter(gender == 0) %>%
+    filter(h < -.95)
