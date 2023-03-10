@@ -1,0 +1,433 @@
+---
+title: "R Notebook of A Reanalysis of the Handedness-Math Hypothesis Using Generalized Additive Models (by G Sala and F Gobet)"
+output:
+  word_document: default
+  html_document:
+    df_print: paged
+---
+
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+####Libraries and Data Loading####
+
+list.of.packages <- c('gamlss', 'openxlsx', 'readr','tidymv','mgcv','dplyr','ggplot2')
+new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
+if(length(new.packages)) install.packages(new.packages)
+
+
+library(openxlsx)
+library(gamlss)
+library(readr)
+library(mgcv)
+library(tidymv)
+library(dplyr)
+library(ggplot2)
+
+
+
+data <- read.csv('https://raw.githubusercontent.com/SG540/handedness_reanalysis/main/data_handedness.csv')
+
+set.seed(1892)
+
+data$gender <- as.factor(data$gender)
+data$school <- as.factor(data$school)
+data$h <- as.numeric(data$h)
+data$spat <- as.numeric(data$spat)
+data$math <- as.numeric(data$math)
+
+
+data <- data[sample(nrow(data)), ]
+
+dat_1=subset(data, Exp == "Exp1") %>% dplyr::select(-c(spat))
+dat_2=subset(data, Exp == "Exp2") %>% dplyr::select(-c(spat))
+dat_3=subset(data, Exp == "Exp3") %>% dplyr::select(-c(school))
+dat_4=subset(data, Exp == "Exp4")
+dat_5=subset(data, Exp == "Exp5")
+
+
+
+dat_3$math_inv <- abs(dat_3$math-max(dat_3$math))
+dat_4$math_inv <- abs(dat_4$math-max(dat_4$math))
+
+```
+
+
+
+
+#Experiment 1
+
+```{r}
+
+####Base Model####
+
+
+
+gamlss_1 <- gamlss(math ~ pb(h) + gender + random(school), 
+                     sigma.formula =~ 1,
+                     nu.formula =~ 1,
+                     c.crit = 0.001,
+                     data = dat_1, n.cyc = 100, family = NBI())
+
+plot(gamlss_1) #diagnostic plots
+```
+<b>Figure S1</b>. From the upper-left to the bottom-right: the residuals against the fitted values (μ parameter); the residuals against participants' index; the residuals’ Kernel density estimate; and the QQ-normal plot comparing estimated and theoretical residuals. The upper plots show no relationship between residuals and other variables (e.g., heteroscedasticity). The bottom plots indicate that the distribution of the residuals is approximately normal.
+
+```{r}
+dropterm(gamlss_1, test="Chisq")
+```
+
+```{r warning=FALSE, include=FALSE}
+####Interaction####
+
+df1 <- edf(gamlss_1)$`random(school)`
+
+gamlss_1_int <- gamlss(math ~ pvc(h, by=gender) +
+                      random(school, df=df1), 
+                       sigma.formula =~ 1,
+                       nu.formula =~ 1,
+                       c.crit = 0.001,
+                       data = dat_1, n.cyc = 100, family = NBI())
+
+
+plot(gamlss_1_int)
+```
+
+
+```{r warning=FALSE}
+dropterm(gamlss_1_int, test="Chisq")
+```
+
+```{r warning=FALSE}
+GAIC(gamlss_1,gamlss_1_int,k=2.5)
+```
+
+```{r warning=FALSE}
+#####Graphs#####
+
+model_1 <- gam(
+  math ~ s(h, by=gender) + 
+    gender + s(school , bs="re"),
+  data = dat_1, family=nb()
+)
+
+model_1p <- predict_gam(model_1, exclude_terms = "s(school)")
+Fig1 <- model_1p %>%
+  filter(school == "1") %>%
+  mutate(Gender = case_when(gender == 0 ~ "Females",
+                            gender == 1 ~ "Males")) %>%
+  ggplot(aes(h, fit)) +
+  geom_smooth_ci(Gender)
+
+print(Fig1)
+
+```
+
+#Experiment 2
+
+
+```{r}
+####Base Model####
+
+
+
+gamlss_2 <- gamlss(math ~ pb(h) + gender + random(school), 
+                   sigma.formula =~ 1,
+                   nu.formula =~ 1,
+                   c.crit=0.001,
+                   data=dat_2, n.cyc = 100, family=NBI())
+
+plot(gamlss_2)
+```
+<b>Figure S2</b>. From the upper-left to the bottom-right: the residuals against the fitted values (μ parameter); the residuals against participants' index; the residuals’ Kernel density estimate; and the QQ-normal plot comparing estimated and theoretical residuals. The upper plots show no relationship between residuals and other variables (e.g., heteroscedasticity). The bottom plots indicate that the distribution of the residuals is approximately normal.
+
+```{r warning=FALSE}
+dropterm(gamlss_2, test="Chisq")
+```
+
+
+```{r warning=FALSE, include=FALSE}
+#####Interaction#####
+
+df2 <- edf(gamlss_2)$`random(school)`
+
+gamlss_2_int <- gamlss(math ~ pvc(h, by=gender) + 
+                         random(school, df=df2), 
+                       sigma.formula =~ 1,
+                       nu.formula =~ 1,
+                       c.crit=0.001,
+                       data=dat_2, n.cyc = 100, family=NBI())
+
+plot(gamlss_2_int)
+
+```
+
+
+```{r warning=FALSE}
+dropterm(gamlss_2_int, test="Chisq")
+```
+
+
+```{r warning=FALSE}
+GAIC(gamlss_2,gamlss_2_int,k=2.5)
+```
+
+
+```{r warning=FALSE}
+#####Graphs#####
+
+model_2 <- gam(
+  math ~ s(h) + 
+    gender + s(school , bs="re"),
+  data = dat_2, family=nb()
+)
+
+
+model_2p <- predict_gam(model_2, exclude_terms = "s(school)")
+Fig2 <- model_2p %>%
+  filter(school == "1") %>%
+  mutate(Gender = case_when(gender == 0 ~ "Females",
+                            gender == 1 ~ "Males")) %>%
+  ggplot(aes(h, fit)) +
+  geom_smooth_ci(Gender)
+
+print(Fig2)
+
+```
+
+#Experiment 3
+
+
+```{r}
+####Base Model####
+
+
+gamlss_3 <- gamlss(math_inv ~ pb(h) + spat + gender, 
+                   sigma.formula =~ 1,
+                   nu.formula =~ 1,
+                   c.crit = 0.001,
+                   data = dat_3, n.cyc = 100, family = NBI())
+
+plot(gamlss_3)
+```
+<b>Figure S3</b>. From the upper-left to the bottom-right: the residuals against the fitted values (μ parameter); the residuals against participants' index; the residuals’ Kernel density estimate; and the QQ-normal plot comparing estimated and theoretical residuals. The upper plots show no relationship between residuals and other variables (e.g., heteroscedasticity). The bottom plots indicate that the distribution of the residuals is approximately normal (yet slightly platykurtic).
+
+```{r}
+dropterm(gamlss_3, test="Chisq")
+```
+
+
+```{r warning=FALSE, include=FALSE}
+####Interaction####
+
+gamlss_3_int <- gamlss(math_inv ~ pvc(h, by=gender) + spat, 
+                       sigma.formula =~ 1,
+                       nu.formula =~ 1,
+                       c.crit = 0.001,
+                       data = dat_3, n.cyc = 100, family = NBI())
+
+
+plot(gamlss_3_int)
+```
+
+
+```{r warning=FALSE}
+dropterm(gamlss_3_int, test="Chisq")
+```
+
+
+```{r}
+GAIC(gamlss_3,gamlss_3_int,k=2.5)
+```
+
+
+```{r warning=FALSE}
+####Graphs####
+
+model_3 <- gam(
+  math ~ s(h) + 
+    gender,
+  data = dat_3, family = nb()
+)
+
+summary(model_3)
+
+
+model_3p <- predict_gam(model_3)
+Fig3 <- model_3p %>%
+  mutate(Gender = case_when(gender == 0 ~ "Females",
+                            gender == 1 ~ "Males")) %>%
+  ggplot(aes(h, fit)) +
+  geom_smooth_ci(Gender)
+
+print(Fig3)
+
+```
+
+
+
+#Experiment 4
+
+
+```{r}
+
+gamlss_4 <- gamlss(round(math_inv) ~ pb(h) + gender + spat + random(school), 
+                   sigma.formula =~ 1,
+                   nu.formula =~ 1,
+                   c.crit = 0.001,
+                   data = dat_4, n.cyc = 100, family = NBI())
+
+plot(gamlss_4)
+```
+<b>Figure S4</b>. From the upper-left to the bottom-right: the residuals against the fitted values (μ parameter); the residuals against participants' index; the residuals’ Kernel density estimate; and the QQ-normal plot comparing estimated and theoretical residuals. The upper plots show no relationship between residuals and other variables (e.g., heteroscedasticity). The bottom plots indicate that the distribution of the residuals is approximately normal.
+
+```{r}
+dropterm(gamlss_4, test="Chisq")
+```
+
+
+```{r warning=FALSE, include=FALSE}
+####Interaction####
+
+df4 <- edf(gamlss_4)$`random(school)`
+gamlss_4_int <- gamlss(round(math_inv) ~ pvc(h, by = gender) + spat + 
+                         random(school, df = df4), 
+                       sigma.formula =~ 1,
+                       nu.formula =~ 1,
+                       c.crit = 0.001,
+                       data = dat_4, n.cyc = 100, family = NBI())
+
+
+plot(gamlss_4_int)
+```
+
+
+```{r warning=FALSE}
+dropterm(gamlss_4_int, test="Chisq")
+```
+
+
+```{r}
+GAIC(gamlss_4,gamlss_4_int,k=2.5)
+```
+
+
+```{r warning=FALSE}
+####Graphs####
+
+model_4 <- gam(
+  math ~ s(h) +
+    gender + s(school, bs = "re"),
+  data = dat_4, family = nb()
+)
+
+
+model_4p <- predict_gam(model_4, exclude_terms = "s(school)")
+Fig4 <- model_4p %>%
+  filter(school == "1") %>%
+  mutate(Gender = case_when(gender == 0 ~ "Females",
+                            gender == 1 ~ "Males")) %>%
+  ggplot(aes(h, fit)) +
+  geom_smooth_ci(Gender)
+
+print(Fig4)
+```
+
+
+#Experiment 5
+
+
+```{r}
+####Base Model####
+
+
+
+gamlss_5 <- gamlss(I(math*2) ~ pb(h) + gender + spat +
+                     random(school), 
+                   sigma.formula =~ 1,
+                   nu.formula =~ 1,
+                   c.crit = 0.001,
+                   data = dat_5, n.cyc = 100, family = NBI())
+
+plot(gamlss_5)
+```
+<b>Figure S5</b>. From the upper-left to the bottom-right: the residuals against the fitted values (μ parameter); the residuals against participants' index; the residuals’ Kernel density estimate; and the QQ-normal plot comparing estimated and theoretical residuals. The upper plots show no relationship between residuals and other variables (e.g., heteroscedasticity). The bottom plots indicate that the distribution of the residuals is approximately normal.
+
+```{r}
+dropterm(gamlss_5, test="Chisq")
+```
+
+
+```{r warning=FALSE, include=FALSE}
+####Interaction####
+
+df5 <- edf(gamlss_5)$`random(school)`
+gamlss_5_int <- gamlss(I(math*2) ~ pvc(h, by = gender) + spat +
+                         random(school, df = df5), 
+                   sigma.formula =~ 1,
+                   nu.formula =~ 1,
+                   c.crit = 0.001,
+                   data = dat_5, n.cyc = 100, family = NBI())
+
+
+plot(gamlss_5_int)
+```
+
+
+```{r warning=FALSE}
+dropterm(gamlss_5_int, test="Chisq")
+```
+
+
+```{r}
+GAIC(gamlss_5,gamlss_5_int,k=2.5)
+```
+
+```{r warning=FALSE}
+####Graphs####
+
+model_5 <- gam(
+  I(math*2) ~ s(h, by=gender) + 
+    gender + s(school, bs = "re"),
+  data = dat_5, family = nb()
+)
+
+
+model_5p <- predict_gam(model_5, exclude_terms = "s(school)")
+Fig5 <- model_5p %>%
+  filter(school == "1") %>%
+  mutate(Gender = case_when(gender == 0 ~ "Females",
+                            gender == 1 ~ "Males")) %>%
+  ggplot(aes(h, fit)) +
+  geom_smooth_ci(Gender)
+
+print(Fig5)
+
+```
+
+
+
+
+```{r eval=FALSE, include=FALSE}
+#Printing the Figures
+png("Figure1.png", width = 20, height = 10, units = "cm", res = 300)
+print(Fig1)
+dev.off()
+
+png("Figure2.png", width = 20, height = 10, units = "cm", res = 300)
+print(Fig2)
+dev.off()
+
+png("Figure3.png", width = 20, height = 10, units = "cm", res = 300)
+print(Fig3)
+dev.off()
+
+png("Figure4.png", width = 20, height = 10, units = "cm", res = 300)
+print(Fig4)
+dev.off()
+
+png("Figure5.png", width = 20, height = 10, units = "cm", res = 300)
+print(Fig5)
+dev.off()
+
+```
+
